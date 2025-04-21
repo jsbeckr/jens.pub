@@ -19,6 +19,9 @@
     </nav>
     <super>
     <footer>
+      <code>
+        generateImpressum();
+      </code>
     </footer>
   </body>
 </html>
