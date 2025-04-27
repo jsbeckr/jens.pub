@@ -1,6 +1,7 @@
 package main
 
 import (
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -12,12 +13,12 @@ import (
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
 	"github.com/gomarkdown/markdown/parser"
+	cp "github.com/otiai10/copy"
 )
 
 func check(e error) {
 	if e != nil {
-		// TODO: maybe log.Fatal?
-		panic(e)
+		log.Fatal(e)
 	}
 }
 
@@ -72,16 +73,39 @@ func main() {
 		check(err)
 	} else {
 		render()
+		log.Println("")
 	}
 }
 
 func render() {
+	err := cp.Copy("./static/", "./out/static", cp.Options{
+		Sync: true,
+	})
+	check(err)
+
 	data, err := os.ReadFile("content/index.md")
 	check(err)
 
 	rendered := mdToHtml(data)
 
-	err = os.WriteFile("out/index.html", rendered, 0644)
+	tmpl := template.Must(template.ParseGlob("layouts/*"))
+	check(err)
+
+	f, err := os.Create("out/index.html")
+	check(err)
+	defer f.Close()
+
+	test := struct {
+		Title  string
+		Author string
+		Index  template.HTML
+	}{
+		Title:  "jens.pub",
+		Author: "Jens",
+		Index:  template.HTML(string(rendered)),
+	}
+
+	err = tmpl.ExecuteTemplate(f, "index.html", test)
 	check(err)
 }
 

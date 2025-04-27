@@ -1,15 +1,14 @@
-# Testical
+# About
 
-This is just a testical.
+This is my _self-rolled_ blog.
 
-this is nice aber jetzt aender ich ja was....
+```go
+func main() {
+  fmt.Println("hihihih")
+}
+```
 
-wtf?! na gut dann halt nicht
+This is just a small example.
 
-was ist 4913??
-
-hihihi
-
-| Column1 | Column2 | Column3 |
-| ------- | ------- | ------- |
-| Item1   | Item1   | Item1   |
+- asdasd
+- asdasd

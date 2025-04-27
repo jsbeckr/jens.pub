@@ -3,10 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{{template "title"}}</title>
+    <title>{{.Title}}</title>
     <link href="static/index.css" rel="stylesheet" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
   </head>
   <body>
-    {{ template "index.md" }}
+    <header>{{template "header.html" .}}</header>
+    <div>{{ template "menu.html" .}}</div>
+    <div>{{.Index}}</div>
+    <footer>{{template "footer.html" .}}</footer>
   </body>
 </html>
