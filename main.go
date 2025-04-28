@@ -5,7 +5,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"slices"
 	"strings"
 	"time"
 
@@ -23,57 +22,55 @@ func check(e error) {
 }
 
 func main() {
-	args := os.Args
+	watcher, err := fsnotify.NewWatcher()
+	check(err)
+	defer watcher.Close()
 
-	if slices.Contains(args, "serve") {
+	restartChannel := make(chan struct{})
 
-		watcher, err := fsnotify.NewWatcher()
-		check(err)
-		defer watcher.Close()
+	go watchForChanges(*watcher, restartChannel)
 
-		go func() {
-			for {
-				select {
-				case event, ok := <-watcher.Events:
-					if !ok {
-						return
-					}
+	err = watcher.Add("./content")
+	check(err)
+	err = watcher.Add("./layouts")
+	check(err)
 
-					if event.Has(fsnotify.Write | fsnotify.Create) {
-						if strings.Contains(event.Name, "~") {
-							// log.Println("ignoring file:", event.Name)
-							continue
-						}
+	render()
 
-						log.Println("modified file:", event.Name)
-						time.Sleep(100 * time.Millisecond)
-						render()
-					}
-				case err, ok := <-watcher.Errors:
-					if !ok {
-						return
-					}
-					log.Println("error:", err)
-				}
+	fs := http.FileServer(http.Dir("./out"))
+	http.Handle("/", fs)
+
+	log.Print("Listening on :3000...")
+	server := http.Server{Addr: ":3000", Handler: nil}
+
+	err = server.ListenAndServe()
+	check(err)
+}
+
+func watchForChanges(watcher fsnotify.Watcher, restartChannel chan struct{}) {
+	for {
+		select {
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return
 			}
-		}()
 
-		err = watcher.Add("./content")
-		check(err)
-		err = watcher.Add("./layouts")
-		check(err)
+			if event.Has(fsnotify.Write | fsnotify.Create) {
+				if strings.Contains(event.Name, "~") {
+					continue
+				}
 
-		render()
-
-		fs := http.FileServer(http.Dir("./out"))
-		http.Handle("/", fs)
-
-		log.Print("Listening on :3000...")
-		err = http.ListenAndServe(":3000", nil)
-		check(err)
-	} else {
-		render()
-		log.Println("")
+				log.Println("modified file:", event.Name)
+				restartChannel <- struct{}{}
+				time.Sleep(100 * time.Millisecond)
+				render()
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Println("error:", err)
+		}
 	}
 }
 
