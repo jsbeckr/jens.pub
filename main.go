@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"html/template"
 	"log"
 	"net/http"
@@ -8,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gomarkdown/markdown"
 	"github.com/gomarkdown/markdown/html"
@@ -17,7 +20,7 @@ import (
 
 func check(e error) {
 	if e != nil {
-		log.Fatal(e)
+		log.Println("Error: " + e.Error())
 	}
 }
 
@@ -26,7 +29,8 @@ func main() {
 	check(err)
 	defer watcher.Close()
 
-	restartChannel := make(chan struct{})
+	reloadBrowser := make(chan bool)
+	restartChannel := make(chan bool)
 
 	go watchForChanges(*watcher, restartChannel)
 
@@ -37,17 +41,65 @@ func main() {
 
 	render()
 
+	// TODO: split ServerMux to have the webserver running the ganze Zeit
 	fs := http.FileServer(http.Dir("./out"))
 	http.Handle("/", fs)
+	http.Handle("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			check(err)
+		}
+		defer c.CloseNow()
+
+		// Set the context as needed. Use of r.Context() is not recommended
+		// to avoid surprising behavior (see http.Hijacker).
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		<-reloadBrowser
+
+		log.Println("SENDING WEBSOCKET RELOAD")
+
+		wsjson.Write(ctx, c, "reload")
+
+		c.Close(websocket.StatusNormalClosure, "")
+	}))
 
 	log.Print("Listening on :3000...")
 	server := http.Server{Addr: ":3000", Handler: nil}
 
-	err = server.ListenAndServe()
-	check(err)
+	go func() {
+		for {
+			if <-restartChannel {
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+				if err := server.Shutdown(ctx); err != nil {
+					panic(err)
+				}
+
+				time.Sleep(500 * time.Millisecond)
+
+				server = http.Server{Addr: ":3000", Handler: nil}
+				go func() {
+					log.Println("New Server listening!")
+					reloadBrowser <- true
+					server.ListenAndServe()
+				}()
+
+				cancel()
+			}
+		}
+	}()
+
+	go func() {
+		server.ListenAndServe()
+	}()
+
+	block := make(chan struct{})
+	<-block
 }
 
-func watchForChanges(watcher fsnotify.Watcher, restartChannel chan struct{}) {
+func watchForChanges(watcher fsnotify.Watcher, restartChannel chan bool) {
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -61,8 +113,7 @@ func watchForChanges(watcher fsnotify.Watcher, restartChannel chan struct{}) {
 				}
 
 				log.Println("modified file:", event.Name)
-				restartChannel <- struct{}{}
-				time.Sleep(100 * time.Millisecond)
+				restartChannel <- true
 				render()
 			}
 		case err, ok := <-watcher.Errors:

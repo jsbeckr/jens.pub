@@ -14,4 +14,11 @@
     <div>{{.Index}}</div>
     <footer>{{template "footer.html" .}}</footer>
   </body>
+  <script>
+    var socket = new WebSocket("ws://localhost:3000/reload");
+    socket.onmessage = function (e) {
+      console.log("RELOAD");
+      location.reload();
+    };
+  </script>
 </html>
