@@ -1,5 +1,15 @@
-<div class="p-4 text-center">
-  <a href="/" class="underline hover:no-underline">
-    <h1 class="text-3xl font-bold">{{.Title}}</h1>
-  </a>
+<div
+  class="m-2 px-4 py-2 border-4 text-black border-e-8 border-b-8 border-black bg-amber-200 text-center rounded-2xl"
+>
+  <div class="flex justify-between items-center">
+    <a href="/" class="hover:underline underline-offset-2 decoration-4">
+      <h1 class="text-3xl font-bold">{{.Title}}</h1>
+    </a>
+    <menu class="flex gap-4 font-bold">
+      <a href="/posts">Posts</a>
+      <a href="/notes">Notes</a>
+      <a href="/projects">Projects</a>
+      <a href="/about">About</a>
+    </menu>
+  </div>
 </div>

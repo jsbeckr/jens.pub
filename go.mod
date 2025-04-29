@@ -7,6 +7,7 @@ require github.com/gomarkdown/markdown v0.0.0-20250311123330-531bef5e742b
 require (
 	github.com/coder/websocket v1.8.13 // indirect
 	github.com/otiai10/mint v1.6.3 // indirect
+	github.com/yuin/goldmark v1.7.11 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 )
 

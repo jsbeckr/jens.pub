@@ -8,16 +8,18 @@
     <link rel="manifest" href="/static/site.webmanifest" />
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
   </head>
-  <body class="bg-zinc-900 text-zinc-200">
+  <body class="bg-stone-700 text-black max-w-3xl flex flex-col antialiased">
     <header>{{template "header.html" .}}</header>
-    <div>{{ template "menu.html" .}}</div>
-    <div>{{.Index}}</div>
+    <div
+      class="m-2 p-4 border-4 border-b-8 border-e-8 border-black bg-amber-200 rounded-2xl"
+    >
+      {{.Index}}
+    </div>
     <footer>{{template "footer.html" .}}</footer>
   </body>
   <script>
     var socket = new WebSocket("ws://localhost:3000/reload");
     socket.onmessage = function (e) {
-      console.log("RELOAD");
       location.reload();
     };
   </script>

@@ -6,8 +6,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"os/exec"
 	"strings"
-	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
@@ -30,9 +30,8 @@ func main() {
 	defer watcher.Close()
 
 	reloadBrowser := make(chan bool)
-	restartChannel := make(chan bool)
 
-	go watchForChanges(*watcher, restartChannel)
+	go watchForChanges(*watcher, reloadBrowser)
 
 	err = watcher.Add("./content")
 	check(err)
@@ -41,65 +40,53 @@ func main() {
 
 	render()
 
-	// TODO: split ServerMux to have the webserver running the ganze Zeit
 	fs := http.FileServer(http.Dir("./out"))
-	http.Handle("/", fs)
-	http.Handle("/reload", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c, err := websocket.Accept(w, r, nil)
-		if err != nil {
-			check(err)
-		}
-		defer c.CloseNow()
-
-		// Set the context as needed. Use of r.Context() is not recommended
-		// to avoid surprising behavior (see http.Hijacker).
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		<-reloadBrowser
-
-		log.Println("SENDING WEBSOCKET RELOAD")
-
-		wsjson.Write(ctx, c, "reload")
-
-		c.Close(websocket.StatusNormalClosure, "")
+	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		fs.ServeHTTP(w, r)
 	}))
+	http.Handle(
+		"/reload",
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := websocket.Accept(w, r, nil)
+			if err != nil {
+				check(err)
+			}
+			defer c.CloseNow()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			log.Println("WEBSOCKET CLIENT CONNECTED")
+
+			<-reloadBrowser
+
+			log.Println("SENDING WEBSOCKET RELOAD")
+
+			wsjson.Write(ctx, c, "reload")
+
+			c.Close(websocket.StatusNormalClosure, "")
+		}),
+	)
 
 	log.Print("Listening on :3000...")
 	server := http.Server{Addr: ":3000", Handler: nil}
-
-	go func() {
-		for {
-			if <-restartChannel {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-
-				if err := server.Shutdown(ctx); err != nil {
-					panic(err)
-				}
-
-				time.Sleep(500 * time.Millisecond)
-
-				server = http.Server{Addr: ":3000", Handler: nil}
-				go func() {
-					log.Println("New Server listening!")
-					reloadBrowser <- true
-					server.ListenAndServe()
-				}()
-
-				cancel()
-			}
-		}
-	}()
-
-	go func() {
-		server.ListenAndServe()
-	}()
-
-	block := make(chan struct{})
-	<-block
+	server.ListenAndServe()
 }
 
-func watchForChanges(watcher fsnotify.Watcher, restartChannel chan bool) {
+func updateStyles() {
+	tailwindCmd := exec.Command(
+		"npx",
+		"@tailwindcss/cli", "-i", "./static/base.css", "-o", "./out/static/index.css",
+	)
+	_, err := tailwindCmd.Output()
+	check(err)
+	log.Println("Recomputed styles")
+}
+
+func watchForChanges(watcher fsnotify.Watcher, reloadBrowser chan bool) {
 	for {
 		select {
 		case event, ok := <-watcher.Events:
@@ -113,8 +100,11 @@ func watchForChanges(watcher fsnotify.Watcher, restartChannel chan bool) {
 				}
 
 				log.Println("modified file:", event.Name)
-				restartChannel <- true
+
 				render()
+				updateStyles()
+
+				reloadBrowser <- true
 			}
 		case err, ok := <-watcher.Errors:
 			if !ok {
@@ -123,6 +113,14 @@ func watchForChanges(watcher fsnotify.Watcher, restartChannel chan bool) {
 			log.Println("error:", err)
 		}
 	}
+}
+
+func foobar() {
+	// go through all markdown files
+
+	// look at frontmatter and use referenced layout file to render it
+
+	// folders are the same as the md folder
 }
 
 func render() {
@@ -143,6 +141,7 @@ func render() {
 	check(err)
 	defer f.Close()
 
+	// TODO: Frontmatter much?
 	test := struct {
 		Title  string
 		Author string
