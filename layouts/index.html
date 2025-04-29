@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{.Title}}</title>
-    <link href="static/index.css" rel="stylesheet" />
+    <link href="/static/index.css" rel="stylesheet" />
     <link rel="manifest" href="/static/site.webmanifest" />
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
   </head>
@@ -13,14 +13,8 @@
     <div
       class="m-2 p-4 border-4 border-b-8 border-e-8 border-black bg-amber-200 rounded-2xl"
     >
-      {{.Index}}
+      {{.Content}}
     </div>
     <footer>{{template "footer.html" .}}</footer>
   </body>
-  <script>
-    var socket = new WebSocket("ws://localhost:3000/reload");
-    socket.onmessage = function (e) {
-      location.reload();
-    };
-  </script>
 </html>

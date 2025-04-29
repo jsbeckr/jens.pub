@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"html/template"
 	"log"
@@ -8,19 +9,22 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/fsnotify/fsnotify"
-	"github.com/gomarkdown/markdown"
-	"github.com/gomarkdown/markdown/html"
-	"github.com/gomarkdown/markdown/parser"
 	cp "github.com/otiai10/copy"
+	"github.com/yuin/goldmark"
+	"github.com/yuin/goldmark/extension"
+	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/renderer/html"
+	"go.abhg.dev/goldmark/frontmatter"
 )
 
 func check(e error) {
 	if e != nil {
-		log.Println("Error: " + e.Error())
+		panic("Error: " + e.Error())
 	}
 }
 
@@ -39,6 +43,7 @@ func main() {
 	check(err)
 
 	render()
+	updateStyles()
 
 	fs := http.FileServer(http.Dir("./out"))
 	http.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,6 +52,7 @@ func main() {
 		w.Header().Set("Expires", "0")
 		fs.ServeHTTP(w, r)
 	}))
+
 	http.Handle(
 		"/reload",
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,11 +65,9 @@ func main() {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			log.Println("WEBSOCKET CLIENT CONNECTED")
-
 			<-reloadBrowser
 
-			log.Println("SENDING WEBSOCKET RELOAD")
+			log.Println("Browser reload")
 
 			wsjson.Write(ctx, c, "reload")
 
@@ -115,57 +119,126 @@ func watchForChanges(watcher fsnotify.Watcher, reloadBrowser chan bool) {
 	}
 }
 
-func foobar() {
-	// go through all markdown files
-
-	// look at frontmatter and use referenced layout file to render it
-
-	// folders are the same as the md folder
-}
+const (
+	OUT_DIR     = "out/"
+	STATIC_DIR  = "static/"
+	CONTENT_DIR = "content/"
+	LAYOUTS_DIR = "layouts/"
+)
 
 func render() {
-	err := cp.Copy("./static/", "./out/static", cp.Options{
+	err := os.RemoveAll(OUT_DIR)
+	check(err)
+
+	err = os.Mkdir(OUT_DIR, 0755)
+	check(err)
+
+	err = cp.Copy(STATIC_DIR, OUT_DIR+STATIC_DIR, cp.Options{
 		Sync: true,
 	})
 	check(err)
 
-	data, err := os.ReadFile("content/index.md")
+	data, err := os.ReadFile(CONTENT_DIR + "index.md")
 	check(err)
 
 	rendered := mdToHtml(data)
 
-	tmpl := template.Must(template.ParseGlob("layouts/*"))
+	tmpl := template.Must(template.ParseGlob(LAYOUTS_DIR + "*"))
 	check(err)
 
-	f, err := os.Create("out/index.html")
+	index, err := os.Create(OUT_DIR + "index.html")
 	check(err)
-	defer f.Close()
+	defer index.Close()
 
-	// TODO: Frontmatter much?
-	test := struct {
-		Title  string
-		Author string
-		Index  template.HTML
-	}{
-		Title:  "jens.pub",
-		Author: "Jens",
-		Index:  template.HTML(string(rendered)),
+	dirs, err := os.ReadDir(CONTENT_DIR)
+	check(err)
+
+	for _, dir := range dirs {
+		if dir.IsDir() {
+			files, err := os.ReadDir(CONTENT_DIR + dir.Name())
+			check(err)
+
+			err = os.Mkdir(OUT_DIR+dir.Name(), 0755)
+			check(err)
+
+			for _, file := range files {
+				filename := OUT_DIR + dir.Name() + "/" + strings.TrimSuffix(
+					file.Name(),
+					".md",
+				) + ".html"
+				file, err := os.Create(filename)
+				check(err)
+				defer file.Close()
+
+				data := struct {
+					Title   string
+					Content string
+				}{
+					Title:   file.Name(),
+					Content: filename,
+				}
+
+				err = tmpl.ExecuteTemplate(file, "index.html", data)
+				check(err)
+			}
+
+		}
 	}
 
-	err = tmpl.ExecuteTemplate(f, "index.html", test)
+	test := struct {
+		Title   string
+		Content template.HTML
+	}{
+		Title:   "jens.pub",
+		Content: template.HTML(rendered),
+	}
+
+	err = tmpl.ExecuteTemplate(index, "index.html", test)
+	index.WriteString(reloadJS)
 	check(err)
 }
 
-func mdToHtml(md []byte) []byte {
-	// create markdown parser with extensions
-	extensions := parser.CommonExtensions | parser.AutoHeadingIDs | parser.NoEmptyLineBeforeBlock
-	p := parser.NewWithExtensions(extensions)
-	doc := p.Parse(md)
-
-	// create HTML renderer with extensions
-	htmlFlags := html.CommonFlags | html.HrefTargetBlank
-	opts := html.RendererOptions{Flags: htmlFlags}
-	renderer := html.NewRenderer(opts)
-
-	return markdown.Render(doc, renderer)
+type PostMeta struct {
+	Title string    `yaml:"title"`
+	Tags  []string  `yaml:"tags"`
+	Desc  string    `yaml:"desc"`
+	Date  time.Time `yaml:"date"`
 }
+
+func mdToHtml(source []byte) string {
+	md := goldmark.New(
+		goldmark.WithExtensions(extension.GFM, &frontmatter.Extender{}),
+		goldmark.WithParserOptions(
+			parser.WithAutoHeadingID(),
+		),
+		goldmark.WithRendererOptions(
+			html.WithHardWraps(),
+			html.WithXHTML(),
+		),
+	)
+
+	ctx := parser.NewContext()
+
+	var buf bytes.Buffer
+	err := md.Convert(source, &buf, parser.WithContext(ctx))
+	check(err)
+
+	meta := PostMeta{}
+
+	d := frontmatter.Get(ctx)
+	if d != nil {
+		err = d.Decode(&meta)
+		check(err)
+	}
+
+	return buf.String()
+}
+
+const reloadJS = `
+<script>
+  var socket = new WebSocket("ws://localhost:3000/reload");
+  socket.onmessage = function (e) {
+    location.reload();
+  };
+</script>
+	`

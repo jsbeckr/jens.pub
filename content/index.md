@@ -1,4 +1,4 @@
-# About
+# Testical
 
 This is my _self-rolled_ blog.
 
