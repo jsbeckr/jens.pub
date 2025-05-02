@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{.Title}}</title>
+    <link href="/static/index.css" rel="stylesheet" />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico" />
+  </head>
+  <body class="bg-stone-700 text-black max-w-3xl flex flex-col antialiased">
+    <header>{{template "_header.html" .}}</header>
+    <div
+      class="m-2 p-4 border-4 border-b-8 border-e-8 border-black bg-amber-200 rounded-2xl"
+    >
+      {{block "content" .}}
+      <p>Replace me!</p>
+      {{end}}
+    </div>
+    <footer>{{template "_footer.html" .}}</footer>
+  </body>
+</html>

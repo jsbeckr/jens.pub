@@ -1,5 +1,5 @@
 ---
-title: first post
+title: second post
 date: 2025-04-29
 tags:
   - example
@@ -7,10 +7,10 @@ tags:
 desc: this is just a small example post
 template: "post.html"
 type: "post"
-filename: "post-1.html"
+filename: "post-2.html"
 ---
 
-# First Post
+# Second Post
 
 This is my first post. **Fun!**
 

@@ -1,0 +1,12 @@
+{{ template "_layout.html" . }} {{ define "content" }}
+<div class="flex flex-col gap-4">
+  {{ range .Posts}}
+  <div>
+    <a class="hover:underline" href="/posts/{{.Filename}}">
+      <h2 class="font-bold text-xl">{{.Title}}</h2>
+    </a>
+    <p>{{.Desc}}</p>
+  </div>
+  {{end}}
+</div>
+{{ end }}

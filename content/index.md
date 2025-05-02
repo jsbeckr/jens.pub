@@ -1,3 +1,8 @@
+---
+title: jens.pub
+template: index.html
+---
+
 # Testical
 
 This is my _self-rolled_ blog.
@@ -8,7 +13,7 @@ func main() {
 }
 ```
 
-This is just a small example.
+This is just a small example. Geht das noch?!
 
 - asdasd
 - asdasd
